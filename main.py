@@ -1,4 +1,5 @@
 import os
+import requests
 
 import resend
 from fastapi import FastAPI, Request
@@ -13,6 +14,13 @@ TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
 OWNER_EMAIL = os.getenv("OWNER_EMAIL", "kiimigu4@gmail.com")
 
+JOBBER_CLIENT_ID = os.getenv("JOBBER_CLIENT_ID")
+JOBBER_CLIENT_SECRET = os.getenv("JOBBER_CLIENT_SECRET")
+JOBBER_REDIRECT_URI = os.getenv(
+    "JOBBER_REDIRECT_URI",
+    "https://northcresthvac.onrender.com/jobber/callback",
+)
+
 resend.api_key = RESEND_API_KEY
 
 
@@ -20,9 +28,37 @@ resend.api_key = RESEND_API_KEY
 def health_check():
     return {"status": "ok"}
 
+
 @app.get("/jobber/callback")
-async def jobber_callback():
-    return {"success": True}
+async def jobber_callback(code: str = None):
+    if not code:
+        return {"success": False, "error": "Missing code"}
+
+    try:
+        response = requests.post(
+            "https://api.getjobber.com/api/oauth/token",
+            data={
+                "grant_type": "authorization_code",
+                "code": code,
+                "client_id": JOBBER_CLIENT_ID,
+                "client_secret": JOBBER_CLIENT_SECRET,
+                "redirect_uri": JOBBER_REDIRECT_URI,
+            },
+            timeout=30,
+        )
+
+        token_data = response.json()
+        print("JOBBER TOKEN RESPONSE:", token_data)
+
+        return {
+            "success": True,
+            "message": "Jobber OAuth token received",
+            "token_data": token_data,
+        }
+
+    except Exception as e:
+        print("JOBBER OAUTH ERROR:", str(e))
+        return {"success": False, "error": str(e)}
 
 
 @app.post("/vapi")
