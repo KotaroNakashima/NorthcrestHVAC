@@ -61,6 +61,60 @@ async def jobber_callback(code: str = None):
         return {"success": False, "error": str(e)}
 
 
+def create_jobber_test_client():
+    query = """
+    mutation {
+      clientCreate(
+        input: {
+          firstName: "Test"
+          lastName: "Customer"
+          emails: [
+            {
+              description: "MAIN"
+              primary: true
+              address: "test@example.com"
+            }
+          ]
+        }
+      ) {
+        client {
+          id
+          firstName
+          lastName
+        }
+      }
+    }
+    """
+
+    response = requests.post(
+        "https://api.getjobber.com/api/graphql",
+        headers={
+            "Authorization": f"Bearer {os.getenv('JOBBER_ACCESS_TOKEN')}",
+            "Content-Type": "application/json",
+            "X-JOBBER-GRAPHQL-VERSION": "2025-01-20",
+        },
+        json={"query": query},
+        timeout=30,
+    )
+
+    return response.json()
+
+
+@app.get("/jobber/test-client")
+async def jobber_test_client():
+    try:
+        result = create_jobber_test_client()
+        return {
+            "success": True,
+            "jobber_response": result,
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+        }
+
+
 @app.post("/vapi")
 async def vapi_webhook(request: Request):
     data = await request.json()
