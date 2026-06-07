@@ -20,6 +20,10 @@ resend.api_key = RESEND_API_KEY
 def health_check():
     return {"status": "ok"}
 
+@app.get("/jobber/callback")
+async def jobber_callback():
+    return {"success": True}
+
 
 @app.post("/vapi")
 async def vapi_webhook(request: Request):
