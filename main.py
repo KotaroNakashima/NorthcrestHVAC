@@ -70,7 +70,6 @@ def create_jobber_test_client():
           lastName: "Customer"
           emails: [
             {
-              description: "MAIN"
               primary: true
               address: "test@example.com"
             }
