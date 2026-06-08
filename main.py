@@ -190,8 +190,6 @@ Service Address:
 Summary:
 {summary}
 
-Jobber Result:
-{jobber_result}
 """
 
         resend.Emails.send({
