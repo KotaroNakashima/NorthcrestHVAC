@@ -174,18 +174,43 @@ async def jobber_test_client():
 async def jobber_schema_test():
     query = """
     {
-      __type(name: "Mutation") {
-        fields {
+      clientNote: __type(name: "ClientCreateNoteInput") {
+        inputFields {
           name
-          args {
+          type {
             name
-            type {
+            kind
+            ofType {
               name
               kind
-              ofType {
-                name
-                kind
-              }
+            }
+          }
+        }
+      }
+
+      property: __type(name: "PropertyCreateInput") {
+        inputFields {
+          name
+          type {
+            name
+            kind
+            ofType {
+              name
+              kind
+            }
+          }
+        }
+      }
+
+      request: __type(name: "RequestCreateInput") {
+        inputFields {
+          name
+          type {
+            name
+            kind
+            ofType {
+              name
+              kind
             }
           }
         }
@@ -205,7 +230,6 @@ async def jobber_schema_test():
     )
 
     return response.json()
-
 
 
 # =========================
