@@ -71,13 +71,10 @@ def split_name(full_name: str):
     if len(parts) == 1:
         return parts[0], "Customer"
 
-    first_name = parts[0]
-    last_name = " ".join(parts[1:])
-
-    return first_name, last_name
+    return parts[0], " ".join(parts[1:])
 
 
-def create_jobber_client(caller_name, caller_number, service_address, summary):
+def create_jobber_client(caller_name):
     first_name, last_name = split_name(caller_name)
 
     query = """
@@ -96,17 +93,6 @@ def create_jobber_client(caller_name, caller_number, service_address, summary):
         "input": {
             "firstName": first_name,
             "lastName": last_name,
-            "phoneNumbers": [
-                {
-                    "primary": True,
-                    "number": caller_number,
-                }
-            ],
-            "addresses": [
-                {
-                    "street1": service_address or "Address not provided",
-                }
-            ],
         }
     }
 
@@ -126,19 +112,13 @@ def create_jobber_client(caller_name, caller_number, service_address, summary):
 
     result = response.json()
     print("JOBBER CLIENT CREATE RESPONSE:", result)
-
     return result
 
 
 @app.get("/jobber/test-client")
 async def jobber_test_client():
     try:
-        result = create_jobber_client(
-            caller_name="Test Customer",
-            caller_number="+16025551234",
-            service_address="123 Main St, Phoenix, AZ",
-            summary="Test HVAC request",
-        )
+        result = create_jobber_client("Test Customer")
 
         return {
             "success": True,
@@ -180,12 +160,7 @@ Our team will review your request and follow up shortly."""
         jobber_result = None
 
         if intent in ["service_request", "estimate", "maintenance", "emergency"]:
-            jobber_result = create_jobber_client(
-                caller_name=caller_name,
-                caller_number=caller_number,
-                service_address=service_address,
-                summary=summary,
-            )
+            jobber_result = create_jobber_client(caller_name)
 
             client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
             sms = client.messages.create(
@@ -206,20 +181,18 @@ Intent:
 Customer Name:
 {caller_name}
 
+Caller Number:
+{caller_number}
+
 Service Address:
 {service_address}
 
 Summary:
 {summary}
 
-Caller Number:
-{caller_number}
-
 Jobber Result:
 {jobber_result}
 """
-
-        print("Sending HVAC team email via Resend...")
 
         resend.Emails.send({
             "from": "Northcrest HVAC <onboarding@resend.dev>",
@@ -227,8 +200,6 @@ Jobber Result:
             "subject": email_subject,
             "text": email_body,
         })
-
-        print("HVAC team email sent successfully via Resend")
 
         return {
             "success": True,
