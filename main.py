@@ -121,182 +121,10 @@ def create_jobber_client(caller_name: str):
     return jobber_graphql(query, variables)
 
 
-def get_client_id(jobber_result):
-    try:
-        return jobber_result["data"]["clientCreate"]["client"]["id"]
-    except Exception:
-        return None
-
-
-def create_jobber_property(client_id, service_address):
-    if not client_id or not service_address:
-        return None
-
-    query = """
-    mutation CreateProperty($clientId: EncodedId!, $input: PropertyCreateInput!) {
-      propertyCreate(clientId: $clientId, input: $input) {
-        property {
-          id
-        }
-      }
-    }
-    """
-
-    variables = {
-        "clientId": client_id,
-        "input": {
-            "address": {
-                "street1": service_address,
-            }
-        },
-    }
-
-    return jobber_graphql(query, variables)
-
-
-def get_property_id(property_result):
-    try:
-        return property_result["data"]["propertyCreate"]["property"]["id"]
-    except Exception:
-        return None
-
-
-def create_jobber_request(client_id, property_id, caller_number, service_address, summary):
-    if not client_id:
-        return None
-
-    details = f"""
-Phone:
-{caller_number}
-
-Service Address:
-{service_address}
-
-Issue:
-{summary}
-"""
-
-    query = """
-    mutation CreateRequest($input: RequestCreateInput!) {
-      requestCreate(input: $input) {
-        request {
-          id
-          title
-        }
-      }
-    }
-    """
-
-    input_data = {
-        "clientId": client_id,
-        "title": "HVAC Service Request",
-        "requestDetails": details,
-    }
-
-    if property_id:
-        input_data["propertyId"] = property_id
-
-    variables = {
-        "input": input_data,
-    }
-
-    return jobber_graphql(query, variables)
-
-
-def create_jobber_client_note(client_id, caller_number, service_address, summary):
-    if not client_id:
-        return None
-
-    message = f"""
-New HVAC service request from AI phone assistant.
-
-Phone:
-{caller_number}
-
-Service Address:
-{service_address}
-
-Issue:
-{summary}
-"""
-
-    query = """
-    mutation CreateClientNote($clientId: EncodedId!, $input: ClientCreateNoteInput!) {
-      clientCreateNote(clientId: $clientId, input: $input) {
-        note {
-          id
-          message
-        }
-      }
-    }
-    """
-
-    variables = {
-        "clientId": client_id,
-        "input": {
-            "message": message,
-        },
-    }
-
-    return jobber_graphql(query, variables)
-
-
-def create_full_jobber_record(caller_name, caller_number, service_address, summary):
-    client_result = create_jobber_client(caller_name)
-    client_id = get_client_id(client_result)
-
-    property_result = None
-    property_id = None
-    request_result = None
-    note_result = None
-
-    if client_id:
-        try:
-            property_result = create_jobber_property(client_id, service_address)
-            property_id = get_property_id(property_result)
-        except Exception as e:
-            property_result = {"success": False, "error": str(e)}
-
-        try:
-            request_result = create_jobber_request(
-                client_id=client_id,
-                property_id=property_id,
-                caller_number=caller_number,
-                service_address=service_address,
-                summary=summary,
-            )
-        except Exception as e:
-            request_result = {"success": False, "error": str(e)}
-
-        try:
-            note_result = create_jobber_client_note(
-                client_id=client_id,
-                caller_number=caller_number,
-                service_address=service_address,
-                summary=summary,
-            )
-        except Exception as e:
-            note_result = {"success": False, "error": str(e)}
-
-    return {
-        "client_id": client_id,
-        "property_id": property_id,
-        "client_result": client_result,
-        "property_result": property_result,
-        "request_result": request_result,
-        "note_result": note_result,
-    }
-
-
 @app.get("/jobber/test-client")
 async def jobber_test_client():
     try:
-        result = create_full_jobber_record(
-            caller_name="Test Customer",
-            caller_number="+16025551234",
-            service_address="123 Main Street, Phoenix, Arizona",
-            summary="Test HVAC request",
-        )
+        result = create_jobber_client("Test Customer")
 
         return {
             "success": True,
@@ -314,7 +142,35 @@ async def jobber_test_client():
 async def jobber_schema_test():
     query = """
     {
-      clientNote: __type(name: "ClientCreateNoteInput") {
+      propertyPayload: __type(name: "PropertyCreatePayload") {
+        fields {
+          name
+          type {
+            name
+            kind
+            ofType {
+              name
+              kind
+            }
+          }
+        }
+      }
+
+      clientNotePayload: __type(name: "ClientCreateNotePayload") {
+        fields {
+          name
+          type {
+            name
+            kind
+            ofType {
+              name
+              kind
+            }
+          }
+        }
+      }
+
+      requestInput: __type(name: "RequestCreateInput") {
         inputFields {
           name
           type {
@@ -328,7 +184,7 @@ async def jobber_schema_test():
         }
       }
 
-      property: __type(name: "PropertyCreateInput") {
+      propertyInput: __type(name: "PropertyCreateInput") {
         inputFields {
           name
           type {
@@ -342,7 +198,7 @@ async def jobber_schema_test():
         }
       }
 
-      request: __type(name: "RequestCreateInput") {
+      clientNoteInput: __type(name: "ClientCreateNoteInput") {
         inputFields {
           name
           type {
@@ -389,12 +245,7 @@ Our team will review your request and follow up shortly."""
         jobber_result = None
 
         if intent in ["service_request", "estimate", "maintenance", "emergency"]:
-            jobber_result = create_full_jobber_record(
-                caller_name=caller_name,
-                caller_number=caller_number,
-                service_address=service_address,
-                summary=summary,
-            )
+            jobber_result = create_jobber_client(caller_name)
 
             client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 
