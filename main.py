@@ -197,7 +197,7 @@ Issue:
         input_data["propertyId"] = property_id
 
     variables = {
-        "input": input_data
+        "input": input_data,
     }
 
     return jobber_graphql(query, variables)
@@ -259,21 +259,21 @@ def create_full_jobber_record(caller_name, caller_number, service_address, summa
 
         try:
             request_result = create_jobber_request(
-                client_id,
-                property_id,
-                caller_number,
-                service_address,
-                summary,
+                client_id=client_id,
+                property_id=property_id,
+                caller_number=caller_number,
+                service_address=service_address,
+                summary=summary,
             )
         except Exception as e:
             request_result = {"success": False, "error": str(e)}
 
         try:
             note_result = create_jobber_client_note(
-                client_id,
-                caller_number,
-                service_address,
-                summary,
+                client_id=client_id,
+                caller_number=caller_number,
+                service_address=service_address,
+                summary=summary,
             )
         except Exception as e:
             note_result = {"success": False, "error": str(e)}
