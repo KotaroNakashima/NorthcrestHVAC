@@ -101,7 +101,7 @@ def create_jobber_client(caller_name):
         headers={
             "Authorization": f"Bearer {JOBBER_ACCESS_TOKEN}",
             "Content-Type": "application/json",
-            "X-JOBBER-GRAPHQL-VERSION": "2025-01-20",
+            "X-JOBBER-GRAPHQL-VERSION": "2026-05-12",
         },
         json={
             "query": query,
@@ -189,7 +189,6 @@ Service Address:
 
 Summary:
 {summary}
-
 """
 
         resend.Emails.send({
