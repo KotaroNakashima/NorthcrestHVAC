@@ -1,11 +1,15 @@
 import os
 import requests
-
 import resend
+
 from fastapi import FastAPI, Request
 from twilio.rest import Client
 
 app = FastAPI()
+
+# =========================
+# Environment Variables
+# =========================
 
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
@@ -17,6 +21,7 @@ OWNER_EMAIL = os.getenv("OWNER_EMAIL", "kiimigu4@gmail.com")
 JOBBER_CLIENT_ID = os.getenv("JOBBER_CLIENT_ID")
 JOBBER_CLIENT_SECRET = os.getenv("JOBBER_CLIENT_SECRET")
 JOBBER_ACCESS_TOKEN = os.getenv("JOBBER_ACCESS_TOKEN")
+
 JOBBER_REDIRECT_URI = os.getenv(
     "JOBBER_REDIRECT_URI",
     "https://northcresthvac.onrender.com/jobber/callback",
@@ -25,15 +30,27 @@ JOBBER_REDIRECT_URI = os.getenv(
 resend.api_key = RESEND_API_KEY
 
 
+# =========================
+# Health Check
+# =========================
+
 @app.get("/")
 def health_check():
     return {"status": "ok"}
 
 
+# =========================
+# Jobber OAuth Callback
+# =========================
+
 @app.get("/jobber/callback")
 async def jobber_callback(code: str = None):
+
     if not code:
-        return {"success": False, "error": "Missing code"}
+        return {
+            "success": False,
+            "error": "Missing code",
+        }
 
     try:
         response = requests.post(
@@ -49,6 +66,7 @@ async def jobber_callback(code: str = None):
         )
 
         token_data = response.json()
+
         print("JOBBER TOKEN RESPONSE:", token_data)
 
         return {
@@ -59,10 +77,19 @@ async def jobber_callback(code: str = None):
 
     except Exception as e:
         print("JOBBER OAUTH ERROR:", str(e))
-        return {"success": False, "error": str(e)}
 
+        return {
+            "success": False,
+            "error": str(e),
+        }
+
+
+# =========================
+# Name Helper
+# =========================
 
 def split_name(full_name: str):
+
     if not full_name:
         return "Unknown", "Customer"
 
@@ -74,7 +101,12 @@ def split_name(full_name: str):
     return parts[0], " ".join(parts[1:])
 
 
-def create_jobber_client(caller_name):
+# =========================
+# Create Jobber Client
+# =========================
+
+def create_jobber_client(caller_name: str):
+
     first_name, last_name = split_name(caller_name)
 
     query = """
@@ -111,12 +143,19 @@ def create_jobber_client(caller_name):
     )
 
     result = response.json()
+
     print("JOBBER CLIENT CREATE RESPONSE:", result)
+
     return result
 
 
+# =========================
+# Test Endpoint
+# =========================
+
 @app.get("/jobber/test-client")
 async def jobber_test_client():
+
     try:
         result = create_jobber_client("Test Customer")
 
@@ -132,8 +171,13 @@ async def jobber_test_client():
         }
 
 
+# =========================
+# VAPI Webhook
+# =========================
+
 @app.post("/vapi")
 async def vapi_webhook(request: Request):
+
     data = await request.json()
 
     intent = data.get("intent", "unknown")
@@ -149,25 +193,39 @@ async def vapi_webhook(request: Request):
             "received": data,
         }
 
-    sms_body = """Thank you for contacting Northcrest HVAC.
+    sms_body = """
+Thank you for contacting Northcrest HVAC.
 
 We received your service request.
 
-Our team will review your request and follow up shortly."""
+Our team will review your request and follow up shortly.
+"""
 
     try:
+
         sms_sid = None
         jobber_result = None
 
-        if intent in ["service_request", "estimate", "maintenance", "emergency"]:
+        if intent in [
+            "service_request",
+            "estimate",
+            "maintenance",
+            "emergency",
+        ]:
+
             jobber_result = create_jobber_client(caller_name)
 
-            client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+            client = Client(
+                TWILIO_ACCOUNT_SID,
+                TWILIO_AUTH_TOKEN,
+            )
+
             sms = client.messages.create(
                 body=sms_body,
                 from_=TWILIO_PHONE_NUMBER,
                 to=caller_number,
             )
+
             sms_sid = sms.sid
 
         email_subject = f"Northcrest HVAC Inquiry: {intent}"
@@ -191,24 +249,33 @@ Summary:
 {summary}
 """
 
-        resend.Emails.send({
-            "from": "Northcrest HVAC <onboarding@resend.dev>",
-            "to": [OWNER_EMAIL],
-            "subject": email_subject,
-            "text": email_body,
-        })
+        resend.Emails.send(
+            {
+                "from": "Northcrest HVAC <onboarding@resend.dev>",
+                "to": [OWNER_EMAIL],
+                "subject": email_subject,
+                "text": email_body,
+            }
+        )
 
         return {
             "success": True,
             "intent": intent,
-            "sms_sent": intent in ["service_request", "estimate", "maintenance", "emergency"],
+            "sms_sent": intent in [
+                "service_request",
+                "estimate",
+                "maintenance",
+                "emergency",
+            ],
             "sms_sid": sms_sid,
             "owner_notified": True,
             "jobber_result": jobber_result,
         }
 
     except Exception as e:
+
         print("ERROR:", str(e))
+
         return {
             "success": False,
             "error": str(e),
