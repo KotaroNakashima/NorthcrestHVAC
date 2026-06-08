@@ -14,7 +14,13 @@ TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
 OWNER_EMAIL = os.getenv("OWNER_EMAIL", "kiimigu4@gmail.com")
 
+JOBBER_CLIENT_ID = os.getenv("JOBBER_CLIENT_ID")
+JOBBER_CLIENT_SECRET = os.getenv("JOBBER_CLIENT_SECRET")
 JOBBER_ACCESS_TOKEN = os.getenv("JOBBER_ACCESS_TOKEN")
+JOBBER_REDIRECT_URI = os.getenv(
+    "JOBBER_REDIRECT_URI",
+    "https://northcresthvac.onrender.com/jobber/callback",
+)
 
 resend.api_key = RESEND_API_KEY
 
@@ -22,6 +28,38 @@ resend.api_key = RESEND_API_KEY
 @app.get("/")
 def health_check():
     return {"status": "ok"}
+
+
+@app.get("/jobber/callback")
+async def jobber_callback(code: str = None):
+    if not code:
+        return {"success": False, "error": "Missing code"}
+
+    try:
+        response = requests.post(
+            "https://api.getjobber.com/api/oauth/token",
+            data={
+                "grant_type": "authorization_code",
+                "code": code,
+                "client_id": JOBBER_CLIENT_ID,
+                "client_secret": JOBBER_CLIENT_SECRET,
+                "redirect_uri": JOBBER_REDIRECT_URI,
+            },
+            timeout=30,
+        )
+
+        token_data = response.json()
+        print("JOBBER TOKEN RESPONSE:", token_data)
+
+        return {
+            "success": True,
+            "message": "Jobber OAuth token received",
+            "token_data": token_data,
+        }
+
+    except Exception as e:
+        print("JOBBER OAUTH ERROR:", str(e))
+        return {"success": False, "error": str(e)}
 
 
 def split_name(full_name: str):
@@ -33,10 +71,13 @@ def split_name(full_name: str):
     if len(parts) == 1:
         return parts[0], "Customer"
 
-    return parts[0], " ".join(parts[1:])
+    first_name = parts[0]
+    last_name = " ".join(parts[1:])
+
+    return first_name, last_name
 
 
-def create_jobber_client(caller_name):
+def create_jobber_client(caller_name, caller_number, service_address, summary):
     first_name, last_name = split_name(caller_name)
 
     query = """
@@ -54,7 +95,18 @@ def create_jobber_client(caller_name):
     variables = {
         "input": {
             "firstName": first_name,
-            "lastName": last_name
+            "lastName": last_name,
+            "phoneNumbers": [
+                {
+                    "primary": True,
+                    "number": caller_number,
+                }
+            ],
+            "addresses": [
+                {
+                    "street1": service_address or "Address not provided",
+                }
+            ],
         }
     }
 
@@ -74,16 +126,30 @@ def create_jobber_client(caller_name):
 
     result = response.json()
     print("JOBBER CLIENT CREATE RESPONSE:", result)
+
     return result
 
 
 @app.get("/jobber/test-client")
 async def jobber_test_client():
-    result = create_jobber_client("Test Customer")
-    return {
-        "success": True,
-        "jobber_response": result,
-    }
+    try:
+        result = create_jobber_client(
+            caller_name="Test Customer",
+            caller_number="+16025551234",
+            service_address="123 Main St, Phoenix, AZ",
+            summary="Test HVAC request",
+        )
+
+        return {
+            "success": True,
+            "jobber_response": result,
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+        }
 
 
 @app.post("/vapi")
@@ -114,7 +180,12 @@ Our team will review your request and follow up shortly."""
         jobber_result = None
 
         if intent in ["service_request", "estimate", "maintenance", "emergency"]:
-            jobber_result = create_jobber_client(caller_name)
+            jobber_result = create_jobber_client(
+                caller_name=caller_name,
+                caller_number=caller_number,
+                service_address=service_address,
+                summary=summary,
+            )
 
             client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
             sms = client.messages.create(
@@ -135,18 +206,20 @@ Intent:
 Customer Name:
 {caller_name}
 
-Caller Number:
-{caller_number}
-
 Service Address:
 {service_address}
 
 Summary:
 {summary}
 
+Caller Number:
+{caller_number}
+
 Jobber Result:
 {jobber_result}
 """
+
+        print("Sending HVAC team email via Resend...")
 
         resend.Emails.send({
             "from": "Northcrest HVAC <onboarding@resend.dev>",
@@ -154,6 +227,8 @@ Jobber Result:
             "subject": email_subject,
             "text": email_body,
         })
+
+        print("HVAC team email sent successfully via Resend")
 
         return {
             "success": True,
