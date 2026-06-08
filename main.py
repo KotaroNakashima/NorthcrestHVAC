@@ -169,6 +169,43 @@ async def jobber_test_client():
             "success": False,
             "error": str(e),
         }
+        
+@app.get("/jobber/schema-test")
+async def jobber_schema_test():
+    query = """
+    {
+      __type(name: "Mutation") {
+        fields {
+          name
+          args {
+            name
+            type {
+              name
+              kind
+              ofType {
+                name
+                kind
+              }
+            }
+          }
+        }
+      }
+    }
+    """
+
+    response = requests.post(
+        "https://api.getjobber.com/api/graphql",
+        headers={
+            "Authorization": f"Bearer {JOBBER_ACCESS_TOKEN}",
+            "Content-Type": "application/json",
+            "X-JOBBER-GRAPHQL-VERSION": "2026-05-12",
+        },
+        json={"query": query},
+        timeout=30,
+    )
+
+    return response.json()
+
 
 
 # =========================
